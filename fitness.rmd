@@ -1,0 +1,161 @@
+---
+title: "Weight Training Tracker"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+suppressMessages(lapply(c("dplyr","ggplot2","tidyr","knitr","zoo"), library, character.only=T))
+setwd('C:/projects/bp.fitness')
+
+rep_targets <- data.frame(movement = c(""))
+
+
+headerNames <- c('date','movement','weight','set1','set2','set3')
+dat <- read.csv('data.txt', header=F, col.names = headerNames) %>%
+  filter(movement!="curl_dumb") %>%
+  mutate(date = as.POSIXct(date)) %>%
+  arrange(date, movement) %>%
+  replace_na(list(set1=0, set2=0, set3=0)) %>%
+    mutate(days_since_last = difftime(date, lag(date), units='days'),
+          target_reps = ifelse(movement=="dead",5,8),
+          completed_sets = ifelse(set3>=target_reps,T,F),
+          completed_set_1 = ifelse(set1>=target_reps,T,F),
+          completed_set_2 = ifelse(set1>=target_reps,T,F),
+          extra_reps = set3-target_reps) %>%
+  group_by(date) %>% 
+    mutate(days_since_last = sum(days_since_last),
+           bodyweight = sum(ifelse(movement=="weight", weight, 0)),
+           weight_bodyweight_adjusted = ifelse(movement %in% c("dip","pullup","chinup"), ifelse(bodyweight==0, 90, bodyweight) + weight, weight)) %>%
+  group_by(movement) %>% 
+    mutate(label = ifelse(date==max(date),as.character(movement),''),
+         days_since_last_of_this_movement = difftime(date, lag(date), units='days'),
+         lag_extra_reps = lag(extra_reps),
+         weight_increase = (weight_bodyweight_adjusted - lag(weight_bodyweight_adjusted)) / lag(weight_bodyweight_adjusted),
+         weight_increase = ifelse(is.nan(weight_increase),0,weight_increase),
+         extra_reps_change = extra_reps - lag(extra_reps))
+
+weight_increase_dat <- dat %>% filter(weight_increase>-0.2 & weight_increase<0.2 & movement!="weight")
+
+extra_weight_model <- lm(weight_increase ~ extra_reps_change, weight_increase_dat %>% filter(completed_set_2))
+dat$est_max_weight <- dat$weight_bodyweight_adjusted + (dat$weight_bodyweight_adjusted * predict(extra_weight_model, data.frame(extra_reps_change=-dat$extra_reps)))
+```
+
+
+***
+```{r, echo=FALSE, warning=FALSE, fig.width=10}
+dat %>%
+  filter(movement!='weight') %>%
+  ggplot(aes(x=date, y=weight_bodyweight_adjusted, colour=movement, label=label)) + 
+  geom_line() + 
+  geom_text() +
+  xlab("Date") + ylab("Weight in Kg (Bodyweight Adjusted) ") +
+  ggtitle("Movement Overview") +
+  theme(plot.title = element_text(hjust = 0.5))
+  
+```
+  
+
+***
+```{r, echo=FALSE, fig.width=10, message=FALSE, warning=FALSE}
+dat %>%
+  group_by(movement) %>%
+  mutate(order = dense_rank(date),
+    initial_est_max = sum(ifelse(order==1,est_max_weight,0)),
+    uplift = (est_max_weight - initial_est_max) / initial_est_max) %>%
+  filter(!is.na(uplift)) %>%
+  group_by(date) %>%
+  summarise(uplift = mean(uplift),
+            bodyweight = mean(bodyweight)) %>%
+  mutate(uplift = rollmeanr(uplift,2,0),
+         bodyweight = ifelse(bodyweight==0,ifelse(lag(bodyweight)==0,91,lag(bodyweight)),bodyweight),
+         upliftperkilo = uplift / bodyweight) %>%
+  ggplot(aes(y=upliftperkilo, x=date)) +
+    geom_line() +
+    geom_smooth() +
+    ggtitle("Mean Uplift on Initial") +
+    theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+***
+```{r, echo=FALSE, fig.width=10, warning=FALSE, message=FALSE}
+dat %>% filter(movement=='weight') %>%
+  ggplot(aes(x=date, y=weight)) + 
+  geom_point() + 
+  geom_smooth() +
+  xlab("Date") + ylab("Body Weight in Kg") +
+  ggtitle("Weight") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+
+***
+```{r, echo=FALSE, fig.height=20, fig.width=10, warning=FALSE}
+dat %>%
+  filter(movement!="weight") %>%
+  ggplot(aes(x=date, y=weight_bodyweight_adjusted, colour=completed_sets, ymin=weight_bodyweight_adjusted)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymax=est_max_weight)) +
+  facet_grid(movement ~ ., scales = "free_y") +
+  xlab("Date") + ylab("Weight in Kg (Bodyweight Adjusted)") +
+  ggtitle("Movement Detail") +
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position="top")
+```
+  
+
+
+***
+***
+###Weight Increase Modelling
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+weight_increase_dat %>%
+  filter(completed_set_2) %>%
+  ggplot(aes(y=weight_increase, x=extra_reps_change)) + 
+  geom_smooth(method='lm',formula=y ~ x, se = F, colour="black") +
+  geom_point(aes(colour=movement)) +
+  ylab("Weight Increase %") + xlab("Change in Reps on Final Set") +
+  ggtitle("Weight Increase vs Additional Reps") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+dat %>%
+  group_by(movement) %>%
+  mutate(Est.Max.Weight = round(ifelse(movement %in% c("dip","pullup","chinup"), est_max_weight - bodyweight, est_max_weight),2)) %>%
+  top_n(1, date) %>% 
+  select(weight, Est.Max.Weight) %>%
+  filter(!is.na(weight)) %>%
+  filter(movement!="weight") %>%
+  rename(Last.Completed.Weight=weight) %>%
+  kable()
+```
+
+***
+***
+###Macros
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+weight <- tail(na.exclude(dat$bodyweight),1)
+est_fat_pct <- 0.2
+lean_weight <- weight * (1 - est_fat_pct)
+grams_per_lean_kilo_protein <- 0.8 * 2.2
+protein_grams <- lean_weight * grams_per_lean_kilo_protein
+goals <- c("cut","maintain","gain")
+day <- c("off","on")
+
+nutrients <- read.csv('ingredient_macros.txt', header=T)
+
+print(paste("Protein g per day: ", round(protein_grams)))
+
+nutrients %>%
+  mutate(protein_g_per_serving = round(protein_per_gram * grams_in_metric),
+         grams_in_metric = round(grams_in_metric)) %>%
+  select(food, metric, grams_in_metric, protein_g_per_serving) %>%
+  kable(col.names = c("Food","Metric","g","Protein g per Serving"))
+```

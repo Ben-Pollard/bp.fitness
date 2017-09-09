@@ -1,0 +1,14 @@
+food,protein_per_gram,fat_per_gram,carbs_per_gram,metric,grams_in_metric
+chicken breast,0.27,0.05,0.02,1 breast fillet,150
+pork,0.27,0.14,0,1 chop,250
+sirloin,0.29,0.1,0,1 steak,250
+chickpeas (napolina),0.072,0.022,0.157,1 can drained,240
+black beans (dunn's river),0.041,0.006,0.06,1 can,400
+refried beans (old el paso),0.053,0.005,0.122,1 can,435
+eggs,0.12,0.12,0.01,3 eggs,205
+quorn,0.138,0.025,0.012,half 500g pack,250
+whey,0.81,0.074,0.05,1 scoop,24.5
+parmesan,0.33,0.284,0,quarter 200g pack,50
+salmon,0.23,0.07,0,1 fillet,150
+peanut butter,0.24,0.51,0.2,3 tbsp,50
+hummus,0.074,0.32,0.08,1 pot,300
