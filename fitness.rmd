@@ -44,6 +44,13 @@ extra_weight_model <- lm(weight_increase ~ extra_reps_change, weight_increase_da
 dat$est_max_weight <- dat$weight_bodyweight_adjusted + (dat$weight_bodyweight_adjusted * predict(extra_weight_model, data.frame(extra_reps_change=-dat$extra_reps)))
 ```
 
+```{r}
+dat %>% filter(bodyweight>0) %>% ggplot(aes(x=bodyweight)) + geom_density()
+
+dat %>% ggplot(aes(x=weight, colour=movement)) + geom_density(n=50)
+
+dat %>% filter(bodyweight>0) %>% ggplot(aes(x=weight, y=bodyweight, colour=movement)) + geom_point()
+```
 
 ***
 ```{r, echo=FALSE, warning=FALSE, fig.width=10}
