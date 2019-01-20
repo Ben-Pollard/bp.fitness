@@ -9,14 +9,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r, include=FALSE}
 suppressMessages(lapply(c("dplyr","ggplot2","tidyr","knitr","zoo"), library, character.only=T))
-setwd('C:/projects/bp.fitness')
+setwd('~/projects/bp.fitness')
 
 rep_targets <- data.frame(movement = c(""))
 
 
 headerNames <- c('date','movement','weight','set1','set2','set3')
 dat <- read.csv('data.txt', header=F, col.names = headerNames) %>%
-  filter(movement!="curl_dumb") %>%
+  #filter(movement!="curl_dumb") %>%
   mutate(date = as.POSIXct(date)) %>%
   arrange(date, movement) %>%
   replace_na(list(set1=0, set2=0, set3=0)) %>%
@@ -44,7 +44,7 @@ extra_weight_model <- lm(weight_increase ~ extra_reps_change, weight_increase_da
 dat$est_max_weight <- dat$weight_bodyweight_adjusted + (dat$weight_bodyweight_adjusted * predict(extra_weight_model, data.frame(extra_reps_change=-dat$extra_reps)))
 ```
 
-```{r}
+```{r, echo=FALSE, include=FALSE}
 dat %>% filter(bodyweight>0) %>% ggplot(aes(x=bodyweight)) + geom_density()
 
 dat %>% ggplot(aes(x=weight, colour=movement)) + geom_density(n=50)
@@ -83,7 +83,7 @@ dat %>%
   ggplot(aes(y=upliftperkilo, x=date)) +
     geom_line() +
     geom_smooth() +
-    ggtitle("Mean Uplift on Initial") +
+    ggtitle("Power-to-weight Indicator") +
     theme(plot.title = element_text(hjust = 0.5))
 
 ```
@@ -132,6 +132,8 @@ weight_increase_dat %>%
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
+***
+***
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 dat %>%
   group_by(movement) %>%
@@ -139,15 +141,14 @@ dat %>%
   top_n(1, date) %>% 
   select(weight, Est.Max.Weight) %>%
   filter(!is.na(weight)) %>%
-  filter(movement!="weight") %>%
+  filter(! movement %in% c("weight", "pullup", "chinup", "curl_bar")) %>%
   rename(Last.Completed.Weight=weight) %>%
   kable()
 ```
 
 ***
 ***
-###Macros
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
+```{r, echo=FALSE, include=FALSE, warning=FALSE, message=FALSE}
 weight <- tail(na.exclude(dat$bodyweight),1)
 est_fat_pct <- 0.2
 lean_weight <- weight * (1 - est_fat_pct)
